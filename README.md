@@ -1,2 +1,2 @@
 # MAsNMF
-modularized symmetric NMtri-F.
+Modularized symmetric NMtri-F.
