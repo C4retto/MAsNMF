@@ -1,12 +1,4 @@
-from dataclasses import dataclass, field
 import numpy as np
-import networkx as nx
-from sklearn.decomposition import NMF
-from sklearn.cluster import KMeans, SpectralClustering
-from sklearn.metrics import normalized_mutual_info_score as NMI, adjusted_rand_score as ARI
-from joblib import Parallel, delayed
-from tqdm import tqdm
-import scipy.io as sio
 
 
 class MAsNMF(object):
@@ -24,16 +16,40 @@ class MAsNMF(object):
 
         n = self.A.shape[0]
         self.W = rng.random((n, self.n_components))
+        self.hatW = rng.random((n, self.n_components))
         self.H = rng.random((self.n_components, self.n_components))
 
     def update_W(self):
-        pass
+        numer = self.A @ self.W @ self.H.T + self.A.T @ self.W @ self.H \
+        + self._lambda * self.hatW
+
+        denom = self.W @ self.H @ self.W.T @ self.W @ self.H.T \
+        + self.W @ self.H.T @ self.W.T @ self.W @ self.H \
+        + self._lambda
+        denom = np.maximum(denom, 1e-12)
+
+        self.W *= (numer / denom) ** 0.25
 
     def update_H(self):
-        pass
+        numer = self.W.T @ self.A @ self.W
+
+        denom = self.W.T @ self.W @ self.H @ self.W.T @ self.W
+        denom = np.maximum(denom, 1e-12)
+
+        self.H *= numer / denom
 
     def update_hatW(self):
-        pass
+        numer = self.A @ self.hatW + self.A.T @ self.hatW \
+        + 2 * self._lambda * self.W
+
+        denom = self.B1 @ self.hatW + self.B1.T @ self.hatW \
+        + 2 * self._lambda * self.hatW
+        denom = np.maximum(denom, 1e-12)
+
+        self.hatW *= numer / denom
+
+        row_sums = self.hatW.sum(axis=1, keepdims=True)
+        self.hatW /= np.maximum(row_sums, 1e-12)
 
     def fit(self, adjacency_matrix):
         self.A = adjacency_matrix
@@ -53,4 +69,21 @@ class MAsNMF(object):
 
 
 if __name__ == "__main__":
-    pass
+    # 示例用法, texas 数据集
+    from torch_geometric.datasets import WebKB
+    from torch_geometric.utils import to_networkx
+    import networkx as nx
+    from sklearn.metrics import normalized_mutual_info_score as NMI, adjusted_rand_score as ARI
+
+    data = WebKB(root="./data/WebKB", name="texas")[0]
+    graph = to_networkx(data)
+    adjacency_matrix = nx.adjacency_matrix(graph).toarray()
+    n_clusters = len(np.unique(data.y))
+    true_labels = data.y
+
+    model = MAsNMF(n_components=10, iterations=100, _lambda=0.1, random_state=42)
+    model.fit(adjacency_matrix)
+    pred_labels = np.argmax(model.W, axis=1)
+
+    print("NMI:", NMI(true_labels, pred_labels))    # 0.1987
+    print("ARI:", ARI(true_labels, pred_labels))    # 0.1399
