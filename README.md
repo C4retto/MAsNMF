@@ -2,7 +2,7 @@
 
 Modularized symmetric NMtri-F.
 
-$\min \|\mathbf{X} - \mathbf{WHW}^\top\|_F^2 - \text{tr}(\hat{\mathbf{W}}^\top\mathbf{B}\hat{\mathbf{W}}) + \text{dist}(\mathbf{W},\hat{\mathbf{W}})$
+$\min_{} \| \mathbf{X} - \mathbf{WHW}^\top \| _F^2 - \text{tr}(\hat{\mathbf{W}}^\top\mathbf{B}\hat{\mathbf{W}}) + \text{dist}(\mathbf{W},\hat{\mathbf{W}})$
 where $\mathbf{B}$ is modularity matrix.
 
 ### # updating rules
