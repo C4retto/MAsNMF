@@ -20,7 +20,7 @@ class MAsNMF(object):
         self.H = rng.random((self.n_components, self.n_components))
 
     def update_W(self):
-        numer = self.A @ self.W @ self.H.T + self.A.T @ self.W @ self.H \
+        numer = self.X @ self.W @ self.H.T + self.X.T @ self.W @ self.H \
         + self._lambda * self.hatW
 
         denom = self.W @ self.H @ self.W.T @ self.W @ self.H.T \
@@ -31,7 +31,7 @@ class MAsNMF(object):
         self.W *= (numer / denom) ** 0.25
 
     def update_H(self):
-        numer = self.W.T @ self.A @ self.W
+        numer = self.W.T @ self.X @ self.W
 
         denom = self.W.T @ self.W @ self.H @ self.W.T @ self.W
         denom = np.maximum(denom, 1e-12)
@@ -51,13 +51,15 @@ class MAsNMF(object):
         row_sums = self.hatW.sum(axis=1, keepdims=True)
         self.hatW /= np.maximum(row_sums, 1e-12)
 
-    def fit(self, adjacency_matrix):
+    def fit(self, adjacency_matrix, _alpha=1):
         self.A = adjacency_matrix
 
         k_out = self.A.sum(axis=1)   # (n,)
         k_in  = self.A.sum(axis=0)   # (n,)
         m = self.A.sum()
         self.B1 = np.outer(k_out, k_in) / m
+
+        self.X = _alpha * self.A
 
         self.init_matrices()
 
@@ -73,7 +75,7 @@ if __name__ == "__main__":
     from torch_geometric.datasets import WebKB
     from torch_geometric.utils import to_networkx
     import networkx as nx
-    from sklearn.metrics import normalized_mutual_info_score as NMI, adjusted_rand_score as ARI
+    from sklearn.metrics import normalized_mutual_info_score as NMI, adjusted_rand_score as ARI, accuracy_score as ACC
 
     data = WebKB(root="./data/WebKB", name="texas")[0]
     graph = to_networkx(data)
@@ -82,8 +84,9 @@ if __name__ == "__main__":
     true_labels = data.y
 
     model = MAsNMF(n_components=n_clusters, iterations=100, _lambda=0.1, random_state=42)
-    model.fit(adjacency_matrix)
+    model.fit(adjacency_matrix, _alpha=1)
     pred_labels = np.argmax(model.W, axis=1)
 
     print("NMI:", NMI(true_labels, pred_labels))    # 0.2258
     print("ARI:", ARI(true_labels, pred_labels))    # 0.2072
+    print("ACC:", ACC(true_labels, pred_labels))    # 0.2350
