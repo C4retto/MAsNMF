@@ -1,9 +1,17 @@
 import numpy as np
 
-
-class MAsNMF(object):
+class MtriNMF(object):
     '''
-    模块化非对称非负矩阵分解算法类.
+    MtriNMF.
+    @article{yan2019modularized,
+        title={Modularized tri-factor nonnegative matrix factorization for community detection enhancement},
+        author={Yan, Chao and Chang, Zhenhai},
+        journal={Physica A: Statistical Mechanics and its Applications},
+        volume={533},
+        pages={122050},
+        year={2019},
+        publisher={Elsevier}
+        }
     '''
     def __init__(self, n_components, iterations, _lambda, random_state=42):
         self.n_components = n_components
@@ -11,21 +19,20 @@ class MAsNMF(object):
         self._lambda = _lambda
         self.random_state = random_state
 
-    def init_matrices(self):
+    def init_matrices(self): 
         rng = np.random.default_rng(seed=self.random_state)
 
         n = self.A.shape[0]
         self.W = rng.random((n, self.n_components))
-        self.hatW = rng.random((n, self.n_components))
         self.H = rng.random((self.n_components, self.n_components))
 
     def update_W(self):
         numer = self.A @ self.W @ self.H.T + self.A.T @ self.W @ self.H \
-        + self._lambda * self.hatW
+        + self._lambda * self.A.T @ self.W
 
         denom = self.W @ self.H @ self.W.T @ self.W @ self.H.T \
         + self.W @ self.H.T @ self.W.T @ self.W @ self.H \
-        + self._lambda
+        + self._lambda * self.B1.T @ self.W
         denom = np.maximum(denom, 1e-12)
 
         self.W *= (numer / denom) ** 0.25
@@ -38,19 +45,6 @@ class MAsNMF(object):
 
         self.H *= numer / denom
 
-    def update_hatW(self):
-        numer = self.A @ self.hatW + self.A.T @ self.hatW \
-        + 2 * self._lambda * self.W
-
-        denom = self.B1 @ self.hatW + self.B1.T @ self.hatW \
-        + 2 * self._lambda * self.hatW
-        denom = np.maximum(denom, 1e-12)
-
-        self.hatW *= numer / denom
-
-        row_sums = self.hatW.sum(axis=1, keepdims=True)
-        self.hatW /= np.maximum(row_sums, 1e-12)
-
     def fit(self, adjacency_matrix):
         self.A = adjacency_matrix
 
@@ -58,18 +52,14 @@ class MAsNMF(object):
         k_in  = self.A.sum(axis=0)   # (n,)
         m = self.A.sum()
         self.B1 = np.outer(k_out, k_in) / m
-
         self.init_matrices()
 
         for _ in range(self.iterations):
             self.update_W()
             self.update_H()
-            self.update_hatW()
-
 
 
 if __name__ == "__main__":
-    # 示例用法, texas 数据集
     from torch_geometric.datasets import WebKB
     from torch_geometric.utils import to_networkx
     import networkx as nx
@@ -81,9 +71,9 @@ if __name__ == "__main__":
     n_clusters = len(np.unique(data.y))
     true_labels = data.y
 
-    model = MAsNMF(n_components=10, iterations=100, _lambda=0.1, random_state=42)
+    model = MtriNMF(n_components=n_clusters, iterations=100, _lambda=0.1, random_state=42)
     model.fit(adjacency_matrix)
     pred_labels = np.argmax(model.W, axis=1)
 
-    print("NMI:", NMI(true_labels, pred_labels))    # 0.1987
-    print("ARI:", ARI(true_labels, pred_labels))    # 0.1399
+    print("NMI:", NMI(true_labels, pred_labels))   # 0.1867
+    print("ARI:", ARI(true_labels, pred_labels))   # 0.1639
